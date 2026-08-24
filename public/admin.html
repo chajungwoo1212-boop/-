@@ -15,11 +15,33 @@
       <div class="admin-bar">
         <input id="key" type="password" autocomplete="current-password"
                placeholder="ADMIN_KEY">
-        <button id="loadBtn">결과 불러오기</button>
+        <button id="loadBtn">관리자 로그인</button>
       </div>
 
+      <section id="settingsBox"
+        style="display:none;margin:26px 0 30px;padding:22px;border:1px solid #e8e8e8;border-radius:10px;">
+        <h2 style="margin-bottom:18px;">이벤트 시간 설정</h2>
+
+        <div class="field">
+          <label for="targetInput">목표 날짜 / 시간</label>
+          <input id="targetInput" type="datetime-local" step="1">
+        </div>
+
+        <div class="field">
+          <label for="closeInput">00초 이후 접수 유지시간(초)</label>
+          <input id="closeInput" type="number" min="1" step="1" value="60">
+        </div>
+
+        <div class="actions" style="margin-top:18px;">
+          <button id="saveTimeBtn" type="button">시간 저장</button>
+          <button id="resetTimeBtn" type="button">기본시간 복원</button>
+        </div>
+
+        <div id="settingsMessage" class="message" style="min-height:24px;"></div>
+      </section>
+
       <div class="actions">
-        <button id="refreshBtn" disabled>새로고침</button>
+        <button id="refreshBtn" disabled>결과 새로고침</button>
         <button id="csvBtn" disabled>CSV 다운로드</button>
       </div>
 
@@ -46,6 +68,30 @@
 <script>
 let latest = null;
 const el = (id) => document.getElementById(id);
+
+function getKey() {
+  return el("key").value.trim();
+}
+
+function authHeaders() {
+  return { Authorization: `Bearer ${getKey()}` };
+}
+
+function toDatetimeLocal(ms) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date(ms));
+
+  const obj = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${obj.year}-${obj.month}-${obj.day}T${obj.hour}:${obj.minute}:${obj.second}`;
+}
 
 function td(text, className = "") {
   const cell = document.createElement("td");
@@ -79,32 +125,111 @@ function render(data) {
   el("csvBtn").disabled = data.results.length === 0;
 }
 
-async function load() {
-  const key = el("key").value;
-  if (!key) {
+async function loadSettings() {
+  const r = await fetch("/api/admin-settings", {
+    headers: authHeaders(),
+    cache: "no-store"
+  });
+
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || "시간 설정 조회 실패");
+
+  el("settingsBox").style.display = "block";
+  el("targetInput").value = toDatetimeLocal(data.targetMs);
+  el("closeInput").value = Math.round(data.closeAfterMs / 1000);
+}
+
+async function loadResults() {
+  const r = await fetch("/api/results", {
+    headers: authHeaders(),
+    cache: "no-store"
+  });
+
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || "결과 조회 실패");
+  render(data);
+}
+
+async function loginAndLoad() {
+  if (!getKey()) {
     el("message").className = "message error";
     el("message").textContent = "관리자 키를 입력해주세요.";
     return;
   }
 
-  sessionStorage.setItem("formlympic_admin_key", key);
+  sessionStorage.setItem("formlympic_admin_key", getKey());
   el("message").textContent = "불러오는 중...";
 
   try {
-    const r = await fetch("/api/results", {
-      headers: { Authorization: `Bearer ${key}` },
-      cache: "no-store"
-    });
-
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.message || "결과 조회 실패");
-
+    await Promise.all([loadSettings(), loadResults()]);
     el("message").className = "message ok";
-    el("message").textContent = "결과를 불러왔습니다.";
-    render(data);
+    el("message").textContent = "관리자 인증 완료";
   } catch (e) {
     el("message").className = "message error";
     el("message").textContent = e.message;
+  }
+}
+
+async function saveTime() {
+  const localValue = el("targetInput").value;
+  const seconds = Number(el("closeInput").value);
+
+  if (!localValue) {
+    el("settingsMessage").className = "message error";
+    el("settingsMessage").textContent = "목표 날짜/시간을 입력해주세요.";
+    return;
+  }
+
+  const targetTime = `${localValue}+09:00`;
+
+  try {
+    const r = await fetch("/api/admin-settings", {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        targetTime,
+        closeAfterMs: seconds * 1000
+      })
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.message || "저장 실패");
+
+    el("settingsMessage").className = "message ok";
+    el("settingsMessage").textContent =
+      "저장 완료. 재배포 없이 참가자 화면과 서버 판정에 반영됩니다.";
+
+    await Promise.all([loadSettings(), loadResults()]);
+  } catch (e) {
+    el("settingsMessage").className = "message error";
+    el("settingsMessage").textContent = e.message;
+  }
+}
+
+async function resetTime() {
+  if (!confirm("Netlify 환경변수 TARGET_TIME 값으로 되돌릴까요?")) return;
+
+  try {
+    const r = await fetch("/api/admin-settings", {
+      method: "DELETE",
+      headers: authHeaders()
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.message || "복원 실패");
+
+    el("targetInput").value = toDatetimeLocal(data.targetMs);
+    el("closeInput").value = Math.round(data.closeAfterMs / 1000);
+    el("settingsMessage").className = "message ok";
+    el("settingsMessage").textContent = data.message;
+
+    await loadResults();
+  } catch (e) {
+    el("settingsMessage").className = "message error";
+    el("settingsMessage").textContent = e.message;
   }
 }
 
@@ -136,11 +261,13 @@ function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
-el("loadBtn").addEventListener("click", load);
-el("refreshBtn").addEventListener("click", load);
+el("loadBtn").addEventListener("click", loginAndLoad);
+el("refreshBtn").addEventListener("click", loadResults);
 el("csvBtn").addEventListener("click", downloadCsv);
+el("saveTimeBtn").addEventListener("click", saveTime);
+el("resetTimeBtn").addEventListener("click", resetTime);
 el("key").addEventListener("keydown", e => {
-  if (e.key === "Enter") load();
+  if (e.key === "Enter") loginAndLoad();
 });
 
 const saved = sessionStorage.getItem("formlympic_admin_key");

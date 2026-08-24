@@ -1,8 +1,8 @@
-import { getConfig, json } from "./lib/shared.mjs";
+import { getRuntimeConfig, json } from "./lib/shared.mjs";
 
 export default async () => {
   try {
-    const cfg = getConfig();
+    const cfg = await getRuntimeConfig();
 
     return json({
       title: cfg.title,

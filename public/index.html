@@ -223,7 +223,7 @@ async function loadRanks() {
   }
 }
 
-async function loadConfig() {
+async function loadConfig(initial = false) {
   const r = await fetch("/api/config", { cache: "no-store" });
   const data = await r.json();
 
@@ -234,11 +234,13 @@ async function loadConfig() {
   el("title").textContent = cfg.title;
   el("target").textContent = `목표 시각 · ${formatTarget(cfg.targetMs)}`;
 
-  await syncTime();
-  await loadRanks();
+  if (initial) {
+    await syncTime();
+    await loadRanks();
+  }
+
   updateUi();
 }
-
 el("form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!cfg || submitted) return;
@@ -286,8 +288,9 @@ el("form").addEventListener("submit", async (event) => {
 setInterval(updateUi, 16);
 setInterval(() => syncTime(2), 15000);
 setInterval(loadRanks, 2000);
+setInterval(() => loadConfig(false).catch(() => {}), 5000);
 
-loadConfig().catch((e) => {
+loadConfig(true).catch((e) => {
   message.className = "message error";
   message.textContent = `설정 오류: ${e.message}`;
   el("countdown").textContent = "Netlify 환경변수를 확인해주세요.";

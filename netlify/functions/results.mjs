@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { getConfig, isAdmin, json } from "./lib/shared.mjs";
+import { getRuntimeConfig, isAdmin, json } from "./lib/shared.mjs";
 
 export default async (req) => {
   if (req.method !== "GET") {
@@ -17,7 +17,7 @@ export default async (req) => {
   }
 
   try {
-    const cfg = getConfig();
+    const cfg = await getRuntimeConfig();
     const store = getStore("formlympic");
     const prefix = `${cfg.eventId}/submissions/`;
     const { blobs } = await store.list({ prefix });

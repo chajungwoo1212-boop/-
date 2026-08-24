@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 export function getConfig() {
   const title = process.env.EVENT_TITLE || "DC인사이드 갤러리 폼림픽";
@@ -19,6 +20,39 @@ export function getConfig() {
   }
 
   return { title, eventId, targetRaw, targetMs, closeAfterMs };
+}
+
+export async function getRuntimeConfig() {
+  const base = getConfig();
+
+  try {
+    const store = getStore("formlympic");
+    const saved = await store.get(
+      `${base.eventId}/settings/event`,
+      { type: "json", consistency: "strong" }
+    );
+
+    if (!saved) return base;
+
+    const targetRaw = String(saved.targetTime || base.targetRaw);
+    const targetMs = Date.parse(targetRaw);
+    const closeAfterMs = Number(saved.closeAfterMs ?? base.closeAfterMs);
+
+    if (Number.isNaN(targetMs)) return base;
+
+    return {
+      ...base,
+      targetRaw,
+      targetMs,
+      closeAfterMs:
+        Number.isFinite(closeAfterMs) && closeAfterMs >= 1000
+          ? closeAfterMs
+          : base.closeAfterMs,
+    };
+  } catch (error) {
+    console.error("Runtime config load failed:", error);
+    return base;
+  }
 }
 
 export function normalizeText(value, maxLength) {

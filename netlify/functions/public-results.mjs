@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { getConfig, json } from "./_shared.mjs";
+import { getConfig, json } from "./lib/shared.mjs";
 
 export default async (req) => {
   if (req.method !== "GET") {

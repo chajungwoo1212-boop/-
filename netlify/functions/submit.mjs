@@ -1,6 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import {
-  getConfig,
+  getRuntimeConfig,
   normalizeText,
   hashUid,
   json,
@@ -16,7 +16,7 @@ export default async (req, context) => {
   const receivedAtMs = Date.now();
 
   try {
-    const cfg = getConfig();
+    const cfg = await getRuntimeConfig();
 
     if (receivedAtMs < cfg.targetMs) {
       return json({
