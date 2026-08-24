@@ -38,9 +38,32 @@
 
       <div id="message" class="message"></div>
 
+      <section class="leaderboard">
+        <div class="leaderboard-head">
+          <div>
+            <h2>실시간 순위</h2>
+            <div class="muted" style="font-size:13px;margin-top:5px;">
+              목표 시각 이후 서버 도착 순
+            </div>
+          </div>
+          <div id="rankCount" class="leaderboard-count">0명 참여</div>
+        </div>
+
+        <div class="rank-list">
+          <div class="rank-row header">
+            <div class="rank-num">순위</div>
+            <div class="rank-name">닉네임</div>
+            <div class="rank-record">기록</div>
+          </div>
+          <div id="rankBody">
+            <div class="empty-rank">아직 참가 기록이 없습니다.</div>
+          </div>
+        </div>
+      </section>
+
       <div class="note">
         화면 시계는 서버 시간에 맞춰 보정됩니다.<br>
-        최종 순위는 제출 버튼을 누른 PC 시간이 아니라 서버에 도착한 시각으로 판정됩니다.
+        최종 순위는 PC 시간이 아니라 서버에 도착한 시각으로 판정됩니다.
       </div>
     </section>
   </main>
@@ -50,6 +73,7 @@ let cfg = null;
 let offsetMs = 0;
 let submitted = false;
 let syncing = false;
+let rankLoading = false;
 
 const el = (id) => document.getElementById(id);
 const submitBtn = el("submitBtn");
@@ -150,6 +174,55 @@ function updateUi() {
   }
 }
 
+function renderRanks(data) {
+  el("rankCount").textContent = `${data.count}명 참여`;
+  const body = el("rankBody");
+  body.replaceChildren();
+
+  if (!data.results || data.results.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-rank";
+    empty.textContent = "아직 참가 기록이 없습니다.";
+    body.appendChild(empty);
+    return;
+  }
+
+  for (const row of data.results) {
+    const line = document.createElement("div");
+    line.className = "rank-row" + (row.rank <= 3 ? " top3" : "");
+
+    const rank = document.createElement("div");
+    rank.className = "rank-num";
+    rank.textContent = row.rank;
+
+    const name = document.createElement("div");
+    name.className = "rank-name";
+    name.textContent = row.nickname;
+
+    const record = document.createElement("div");
+    record.className = "rank-record";
+    record.textContent = `+${row.diffMs} ms`;
+
+    line.append(rank, name, record);
+    body.appendChild(line);
+  }
+}
+
+async function loadRanks() {
+  if (rankLoading) return;
+  rankLoading = true;
+
+  try {
+    const r = await fetch("/api/public-results", { cache: "no-store" });
+    const data = await r.json();
+    if (r.ok) renderRanks(data);
+  } catch (e) {
+    console.warn("순위 조회 실패", e);
+  } finally {
+    rankLoading = false;
+  }
+}
+
 async function loadConfig() {
   const r = await fetch("/api/config", { cache: "no-store" });
   const data = await r.json();
@@ -162,6 +235,7 @@ async function loadConfig() {
   el("target").textContent = `목표 시각 · ${formatTarget(cfg.targetMs)}`;
 
   await syncTime();
+  await loadRanks();
   updateUi();
 }
 
@@ -199,7 +273,9 @@ el("form").addEventListener("submit", async (event) => {
     submitted = true;
     message.className = "message ok";
     message.textContent =
-      `제출 완료!\n서버 접수: ${data.receivedAtKST}\n목표 시각보다 +${data.diffMs} ms`;
+      `제출 완료!\n서버 접수: ${data.receivedAtKST}\n기록: +${data.diffMs} ms`;
+
+    await loadRanks();
   } catch (e) {
     message.className = "message error";
     message.textContent = e.message;
@@ -209,6 +285,7 @@ el("form").addEventListener("submit", async (event) => {
 
 setInterval(updateUi, 16);
 setInterval(() => syncTime(2), 15000);
+setInterval(loadRanks, 2000);
 
 loadConfig().catch((e) => {
   message.className = "message error";

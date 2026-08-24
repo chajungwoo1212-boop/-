@@ -24,8 +24,7 @@ netlify-formlympic/
 │  └─ styles.css
 ├─ netlify/
 │  └─ functions/
-│     ├─ lib/
-│     │  └─ shared.mjs
+│     ├─ _shared.mjs
 │     ├─ config.mjs
 │     ├─ time.mjs
 │     ├─ submit.mjs
@@ -132,3 +131,16 @@ Netlify:
 - CSV가 정상 다운로드되는지
 
 테스트가 끝난 뒤 실제 `TARGET_TIME`과 새로운 `EVENT_ID`로 변경하고 다시 배포하세요.
+
+
+## 참가 화면 순위 표시
+
+현재 버전은 참가 화면 하단에 전체 순위를 공개합니다.
+
+표시 항목:
+- 순위
+- 닉네임
+- 목표 시각 대비 기록(ms)
+
+식별값(UID)은 공개 순위 API에서 제외되며 관리자 페이지에서만 확인할 수 있습니다.
+순위는 약 2초 간격으로 자동 갱신됩니다.
