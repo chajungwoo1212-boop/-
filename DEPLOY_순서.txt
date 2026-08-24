@@ -1,0 +1,14 @@
+1) 이 폴더 전체를 GitHub 새 저장소에 업로드
+2) Netlify > Add new project > Import an existing project > GitHub
+3) 저장소 선택 후 Deploy
+4) Netlify Environment variables에 아래 5개 등록
+   EVENT_TITLE=DC인사이드 갤러리 폼림픽
+   EVENT_ID=formlympic-20260825
+   TARGET_TIME=2026-08-25T21:00:00+09:00
+   CLOSE_AFTER_MS=60000
+   ADMIN_KEY=본인만 아는 긴 비밀번호
+5) 재배포
+6) 참가자: 사이트 기본주소 /
+7) 관리자: 사이트 기본주소 /admin.html
+
+※ 실제 이벤트 전에 TARGET_TIME을 5~10분 뒤로 잡아 꼭 테스트하세요.
